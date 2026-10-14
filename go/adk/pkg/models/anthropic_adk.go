@@ -224,8 +224,10 @@ func genaiContentsToAnthropicMessages(contents []*genai.Content, config *genai.G
 			}
 		}
 
+		isAssistant := role == "model" || role == "assistant"
+
 		// Handle assistant messages with tool use
-		if len(functionCalls) > 0 && (role == "model" || role == "assistant") {
+		if len(functionCalls) > 0 && isAssistant {
 			// Build assistant message with tool use blocks
 			var contentBlocks []anthropic.ContentBlockParamUnion
 			if len(textParts) > 0 {
@@ -259,7 +261,12 @@ func genaiContentsToAnthropicMessages(contents []*genai.Content, config *genai.G
 				Content: toolResultBlocks,
 			})
 		} else {
-			// Regular user message
+			// Plain content keeps the speaker's role, so an earlier assistant
+			// reply is not sent back to the provider as a user turn.
+			messageRole := anthropic.MessageParamRoleUser
+			if isAssistant {
+				messageRole = anthropic.MessageParamRoleAssistant
+			}
 			var contentBlocks []anthropic.ContentBlockParamUnion
 
 			// Add images first
@@ -274,7 +281,7 @@ func genaiContentsToAnthropicMessages(contents []*genai.Content, config *genai.G
 
 			if len(contentBlocks) > 0 {
 				messages = append(messages, anthropic.MessageParam{
-					Role:    anthropic.MessageParamRoleUser,
+					Role:    messageRole,
 					Content: contentBlocks,
 				})
 			}

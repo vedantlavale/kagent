@@ -311,3 +311,50 @@ func TestAnthropicModelGenerateContentSendsStructuredOutputWithTools(t *testing.
 		t.Fatalf("tools = %#v, want one tool", body["tools"])
 	}
 }
+
+func TestGenaiContentsToAnthropicMessagesPreservesPlainTextRoles(t *testing.T) {
+	text := func(role, s string) *genai.Content {
+		return &genai.Content{Role: role, Parts: []*genai.Part{{Text: s}}}
+	}
+
+	tests := []struct {
+		name     string
+		contents []*genai.Content
+		want     []anthropic.MessageParamRole
+	}{
+		{
+			name:     "model text turn is sent as assistant",
+			contents: []*genai.Content{text("user", "hi"), text("model", "hello"), text("user", "2+2?")},
+			want: []anthropic.MessageParamRole{
+				anthropic.MessageParamRoleUser,
+				anthropic.MessageParamRoleAssistant,
+				anthropic.MessageParamRoleUser,
+			},
+		},
+		{
+			name:     "assistant role alias is sent as assistant",
+			contents: []*genai.Content{text("user", "hi"), text("assistant", "hello")},
+			want: []anthropic.MessageParamRole{
+				anthropic.MessageParamRoleUser,
+				anthropic.MessageParamRoleAssistant,
+			},
+		},
+		{
+			name:     "empty role stays a user turn",
+			contents: []*genai.Content{text("", "hi")},
+			want:     []anthropic.MessageParamRole{anthropic.MessageParamRoleUser},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			messages, _ := genaiContentsToAnthropicMessages(tt.contents, nil)
+
+			got := make([]anthropic.MessageParamRole, 0, len(messages))
+			for _, m := range messages {
+				got = append(got, m.Role)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
